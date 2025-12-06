@@ -1,8 +1,8 @@
-# ACO Distribuído com gRPC 🐜
+# ACO Distribuído com gRPC 
 
 Sistema de **Otimização por Colônia de Formigas (ACO)** implementado de forma distribuída usando **gRPC** com arquitetura **Mestre-Worker**.
 
-## 📋 Arquitetura
+##  Arquitetura
 
 ```
 ┌─────────────────┐
@@ -37,7 +37,7 @@ Sistema de **Otimização por Colônia de Formigas (ACO)** implementado de forma
    - Enviam soluções de volta ao mestre
    - Podem rodar em múltiplos terminais/máquinas
 
-## 🚀 Como Executar
+##  Como Executar
 
 ### 1. Instalação de Dependências
 
@@ -99,7 +99,7 @@ Parâmetros:
 - `--id`: ID único do worker (obrigatório)
 - `--master`: Endereço do mestre (padrão: localhost:50051)
 
-## 📊 Exemplo de Execução
+##  Exemplo de Execução
 
 ### Saída do Mestre:
 ```
@@ -154,7 +154,7 @@ Parâmetros:
 [Worker 1] Solução aceita! Melhor custo global: 14.00
 ```
 
-## 🔧 Estrutura de Arquivos
+##  Estrutura de Arquivos
 
 ```
 aco-algorithm/
@@ -176,7 +176,7 @@ aco-algorithm/
 └── README_DISTRIBUIDO.md           # Este arquivo
 ```
 
-## 🎯 Fluxo de Execução
+##  Fluxo de Execução
 
 ### Para cada iteração:
 
@@ -207,7 +207,7 @@ aco-algorithm/
    - Após todas as iterações, mestre sinaliza término
    - Workers recebem flag `finished=True` e encerram
 
-## 📡 Protocolo gRPC
+##  Protocolo gRPC
 
 ### Serviços
 
@@ -221,7 +221,7 @@ aco-algorithm/
 - Request: `Solution { worker_id, path, cost, iteration, timestamp }`
 - Response: `SolutionResponse { accepted, current_best_cost, current_best_path, message }`
 
-## ⚙️ Parâmetros do ACO
+##  Parâmetros do ACO
 
 - **α (alpha)**: Peso do feromônio (padrão: 1.0)
   - Maior valor = maior influência do feromônio
@@ -236,7 +236,7 @@ aco-algorithm/
 - **Q**: Quantidade de feromônio depositado (padrão: 10)
   - Soluções melhores depositam mais feromônio
 
-## 🌐 Execução em Múltiplas Máquinas
+##  Execução em Múltiplas Máquinas
 
 Para executar em computadores diferentes:
 
@@ -253,7 +253,7 @@ Para executar em computadores diferentes:
    python aco_worker.py --id 3 --master <IP_DO_MESTRE>:50051
    ```
 
-## 🐛 Troubleshooting
+##  Troubleshooting
 
 ### Erro: "No module named 'aco_distributed_pb2'"
 **Solução:** Execute o script de geração do proto:
@@ -280,7 +280,7 @@ pip install -r requirements.txt
 1. Inicie os workers primeiro
 2. Ajuste o parâmetro `--workers` para o número correto de workers
 
-## 📝 Diferenças em Relação à Versão Original
+##  Diferenças em Relação à Versão Original
 
 | Aspecto | Versão Original | Versão Distribuída |
 |---------|-----------------|-------------------|
@@ -290,7 +290,7 @@ pip install -r requirements.txt
 | **Comunicação** | N/A | gRPC |
 | **Escalabilidade** | Limitada | Múltiplas máquinas |
 
-## 🎓 Comparação com Sistema de Impressão
+##  Comparação com Sistema de Impressão
 
 | Sistema de Impressão | ACO Distribuído |
 |---------------------|-----------------|
@@ -302,17 +302,16 @@ pip install -r requirements.txt
 
 **Simplificação:** O ACO distribuído é mais simples porque os workers não competem - eles apenas executam tarefas independentes e reportam ao mestre!
 
-## 📊 Resultados Esperados
+##  Resultados Esperados
 
 - **Speedup**: Aproximadamente linear com o número de workers
 - **Qualidade**: Mesma qualidade da versão centralizada
 - **Overhead**: Pequeno overhead de comunicação gRPC
 
-## 👥 Autores
+##  Autores
 
 Sistema desenvolvido como exemplo de sistema distribuído usando gRPC, baseado no algoritmo ACO clássico.
 
 ---
 
-**Divirta-se explorando computação distribuída com colônia de formigas! 🐜🚀**
 
