@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package aco_distributed;
+
+// Serviço implementado pelo MESTRE (como o PrintingService do servidor burro)
+service ACOMasterService {
+  // Worker solicita trabalho ao mestre
+  rpc RequestWork (WorkRequest) returns (WorkAssignment);
+  
+  // Worker envia solução encontrada ao mestre
+  rpc SubmitSolution (Solution) returns (SolutionResponse);
+}
+
+// Worker solicita trabalho
+message WorkRequest {
+  int32 worker_id = 1;
+  int64 timestamp = 2;
+}
+
+// Mestre atribui trabalho ao worker
+message WorkAssignment {
+  int32 num_ants = 1;           // Quantas formigas o worker deve executar
+  int32 iteration = 2;           // Iteração atual do algoritmo
+  repeated double pheromone_matrix = 3;  // Matriz de feromônios linearizada
+  int32 matrix_size = 4;         // Tamanho da matriz (n x n)
+  repeated double distance_matrix = 5;   // Matriz de distâncias linearizada
+  bool finished = 6;             // Se true, algoritmo terminou
+  double alpha = 7;              // Parâmetro alpha
+  double beta = 8;               // Parâmetro beta
+}
+
+// Worker envia solução ao mestre
+message Solution {
+  int32 worker_id = 1;
+  repeated int32 path = 2;       // Caminho encontrado pela formiga
+  double cost = 3;               // Custo do caminho
+  int32 iteration = 4;           // Iteração em que foi encontrado
+  int64 timestamp = 5;
+}
+
+// Resposta do mestre ao receber solução
+message SolutionResponse {
+  bool accepted = 1;
+  double current_best_cost = 2;  // Melhor custo global até agora
+  repeated int32 current_best_path = 3;  // Melhor caminho global
+  string message = 4;
+}
+
