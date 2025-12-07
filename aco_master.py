@@ -9,10 +9,6 @@ import aco_distributed_pb2_grpc
 
 
 class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
-    """
-    Servidor Mestre do ACO Distribuído
-    Similar ao printer_server.py, mas coordena a execução distribuída do ACO
-    """
     
     def __init__(self, graph_matrix, total_iterations=20, num_ants=10, alpha=1.0, beta=3.0, rho=0.5, q=10):
         self.distance_matrix = graph_matrix
@@ -24,20 +20,16 @@ class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
         self.rho = rho
         self.q = q
         
-        # Inicializa matriz de feromônios
         self.pheromone = [[1.0 for _ in range(self.n)] for _ in range(self.n)]
         
-        # Controle de estado
         self.current_iteration = 0
         self.finished = False
         self.best_cost = math.inf
         self.best_path = None
         
-        # Armazena soluções recebidas na iteração atual
         self.solutions_current_iteration = []
         self.workers_completed = set()
         
-        # Lock para thread-safety
         self.lock = threading.Lock()
         
         print(f"\n{'='*70}")
@@ -49,23 +41,23 @@ class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
         print(f"{'='*70}\n")
     
     def RequestWork(self, request, context):
-        """Worker solicita trabalho ao mestre"""
         with self.lock:
             worker_id = request.worker_id
             
             print(f"[Mestre] Worker {worker_id} solicitou trabalho (Iteração {self.current_iteration + 1}/{self.total_iterations})")
             
             if self.finished:
-                # Algoritmo terminou
                 return aco_distributed_pb2.WorkAssignment(
                     finished=True,
                     num_ants=0,
                     iteration=self.current_iteration
                 )
             
-            # Prepara atribuição de trabalho
             pheromone_flat = [val for row in self.pheromone for val in row]
             distance_flat = [val for row in self.distance_matrix for val in row]
+            
+            start_nodes = [(worker_id * self.num_ants_per_worker + i) % self.n 
+                          for i in range(self.num_ants_per_worker)]
             
             return aco_distributed_pb2.WorkAssignment(
                 num_ants=self.num_ants_per_worker,
@@ -75,11 +67,11 @@ class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
                 distance_matrix=distance_flat,
                 finished=False,
                 alpha=self.alpha,
-                beta=self.beta
+                beta=self.beta,
+                start_nodes=start_nodes
             )
     
     def SubmitSolution(self, request, context):
-        """Worker envia solução encontrada"""
         with self.lock:
             worker_id = request.worker_id
             path = list(request.path)
@@ -88,17 +80,14 @@ class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
             
             print(f"[Mestre] Worker {worker_id} enviou solução | Iteração: {iteration} | Custo: {cost:.2f}")
             
-            # Armazena solução
             self.solutions_current_iteration.append((path, cost))
             self.workers_completed.add(worker_id)
             
-            # Atualiza melhor solução global
             if cost < self.best_cost:
                 self.best_cost = cost
                 self.best_path = path
                 print(f"[Mestre] *** NOVA MELHOR SOLUÇÃO *** | Custo: {cost:.2f} | Caminho: {path}")
             
-            # Prepara resposta
             response = aco_distributed_pb2.SolutionResponse(
                 accepted=True,
                 current_best_cost=self.best_cost,
@@ -109,15 +98,12 @@ class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
             return response
     
     def _update_pheromones(self):
-        """Atualiza matriz de feromônios com as soluções coletadas"""
         print(f"\n[Mestre] Atualizando feromônios com {len(self.solutions_current_iteration)} soluções...")
         
-        # Evaporação
         for i in range(self.n):
             for j in range(self.n):
                 self.pheromone[i][j] *= (1 - self.rho)
         
-        # Deposição de feromônio
         for path, cost in self.solutions_current_iteration:
             deposit = self.q / cost
             for idx in range(len(path)):
@@ -129,10 +115,6 @@ class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
         print(f"[Mestre] Feromônios atualizados!")
     
     def run_coordination(self, expected_workers=2):
-        """
-        Loop principal de coordenação
-        Aguarda workers enviarem soluções e coordena iterações
-        """
         print(f"[Mestre] Aguardando {expected_workers} worker(s) para começar...\n")
         
         while self.current_iteration < self.total_iterations:
@@ -143,14 +125,11 @@ class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
             print(f"  Melhor custo global: {self.best_cost if self.best_cost != math.inf else 'N/A'}")
             print(f"{'='*70}\n")
             
-            # Aguarda workers enviarem soluções
             self._wait_for_workers(expected_workers)
             
-            # Atualiza feromônios
             with self.lock:
                 self._update_pheromones()
                 
-                # Prepara próxima iteração
                 self.solutions_current_iteration.clear()
                 self.workers_completed.clear()
                 self.current_iteration += 1
@@ -158,7 +137,6 @@ class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
             iteration_time = time.time() - iteration_start
             print(f"\n[Mestre] Iteração completada em {iteration_time:.2f}s\n")
         
-        # Finaliza algoritmo
         with self.lock:
             self.finished = True
         
@@ -169,7 +147,6 @@ class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
         print(f"{'='*70}\n")
     
     def _wait_for_workers(self, expected_workers, timeout=60):
-        """Aguarda workers enviarem suas soluções"""
         start_time = time.time()
         
         while True:
@@ -188,14 +165,12 @@ class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
 
 
 def start_server(port, graph_matrix, iterations, ants, workers):
-    """Inicia servidor gRPC do mestre"""
     master = ACOMaster(
         graph_matrix=graph_matrix,
         total_iterations=iterations,
         num_ants=ants
     )
     
-    # Cria servidor gRPC
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     aco_distributed_pb2_grpc.add_ACOMasterServiceServicer_to_server(master, server)
     server.add_insecure_port(f'[::]:{port}')
@@ -203,7 +178,6 @@ def start_server(port, graph_matrix, iterations, ants, workers):
     
     print(f"[Mestre] Servidor gRPC iniciado na porta {port}\n")
     
-    # Inicia coordenação em thread separada
     coordination_thread = threading.Thread(
         target=master.run_coordination,
         args=(workers,),
@@ -212,7 +186,7 @@ def start_server(port, graph_matrix, iterations, ants, workers):
     coordination_thread.start()
     
     try:
-        coordination_thread.join()  # Aguarda término do algoritmo
+        coordination_thread.join()
         print("\n[Mestre] Algoritmo concluído! Aguardando 5s antes de finalizar servidor...")
         time.sleep(5)
     except KeyboardInterrupt:
@@ -231,7 +205,6 @@ def main():
     
     args = parser.parse_args()
     
-    # Grafo de exemplo (mesmo do main.py original)
     graph = [
         [0, 2, 2, 5, 7],
         [2, 0, 4, 8, 2],
@@ -245,4 +218,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
