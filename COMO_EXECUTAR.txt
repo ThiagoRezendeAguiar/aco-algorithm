@@ -10,7 +10,7 @@ pip install -r requirements.txt
 PASSO 2: Gerar código gRPC
 ───────────────────────────
 No Windows:
-    generate_proto.bat ou  ./generate_proto.sh
+    ./generate_proto.sh
 
 No Linux/Mac:
     ./generate_proto.sh
@@ -28,8 +28,6 @@ TERMINAL 2 (Worker 1):
 TERMINAL 3 (Worker 2):
     python aco_worker.py --id 2 --master localhost:50051 --port 50053
 
-TERMINAL 4 (Worker 3 - OPCIONAL):
-    python aco_worker.py --id 3 --master localhost:50051 --port 50054
 
 NOTA: Workers agora requerem parametro --port para servidor 2PC
 
@@ -41,31 +39,4 @@ OBSERVAÇÕES:
 - O número de --workers no mestre deve corresponder ao número de workers iniciados
 - Para parar: Ctrl+C em qualquer terminal
 
-
-EXEMPLO COM MAIS ITERAÇÕES E FORMIGAS:
-───────────────────────────────────────
-Mestre:
-    python aco_master.py --iterations 20 --ants 10 --workers 3
-
-Workers:
-    python aco_worker.py --id 1 --master localhost:50051
-    python aco_worker.py --id 2 --master localhost:50051
-    python aco_worker.py --id 3 --master localhost:50051
-
-
-EXECUÇÃO EM MÁQUINAS DIFERENTES:
-─────────────────────────────────
-No servidor (Mestre):
-    python aco_master.py --port 50051 --iterations 20 --workers 2
-
-Nos clientes (Workers):
-    python aco_worker.py --id 1 --master 192.168.1.100:50051
-    python aco_worker.py --id 2 --master 192.168.1.100:50051
-
-(Substitua 192.168.1.100 pelo IP real do servidor)
-
-
-═══════════════════════════════════════════════════════════
-Para mais detalhes, consulte README_DISTRIBUIDO.md
-═══════════════════════════════════════════════════════════
 

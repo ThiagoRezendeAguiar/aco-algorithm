@@ -49,7 +49,7 @@ pip install -r requirements.txt
 
 **No Windows (PowerShell ou CMD):**
 ```bash
-generate_proto.bat
+./generate_proto.bat
 ```
 
 **No Linux/Mac ou Git Bash:**
@@ -253,64 +253,6 @@ Para executar em computadores diferentes:
    python aco_worker.py --id 3 --master <IP_DO_MESTRE>:50051
    ```
 
-##  Troubleshooting
-
-### Erro: "No module named 'aco_distributed_pb2'"
-**Solução:** Execute o script de geração do proto:
-```bash
-generate_proto.bat  # Windows
-# ou
-./generate_proto.sh  # Linux/Mac
-```
-
-### Erro: "No module named 'grpc'"
-**Solução:** Instale as dependências:
-```bash
-pip install -r requirements.txt
-```
-
-### Workers não conectam ao mestre
-**Solução:** 
-1. Verifique se o mestre está rodando
-2. Verifique o endereço IP e porta
-3. Verifique firewall/antivírus
-
-### Mestre fica esperando workers eternamente
-**Solução:** 
-1. Inicie os workers primeiro
-2. Ajuste o parâmetro `--workers` para o número correto de workers
-
-##  Diferenças em Relação à Versão Original
-
-| Aspecto | Versão Original | Versão Distribuída |
-|---------|-----------------|-------------------|
-| **Execução** | Single-threaded | Multi-processo |
-| **Feromônios** | Local | Centralizado no mestre |
-| **Formigas** | Sequencial | Paralelo entre workers |
-| **Comunicação** | N/A | gRPC |
-| **Escalabilidade** | Limitada | Múltiplas máquinas |
-
-##  Comparação com Sistema de Impressão
-
-| Sistema de Impressão | ACO Distribuído |
-|---------------------|-----------------|
-| Exclusão mútua entre clientes | **NÃO necessário** |
-| Ricart-Agrawala | **NÃO usado** |
-| Relógios de Lamport | **NÃO usado** |
-| Servidor "burro" | Mestre "inteligente" |
-| Clientes competem | Workers colaboram |
-
-**Simplificação:** O ACO distribuído é mais simples porque os workers não competem - eles apenas executam tarefas independentes e reportam ao mestre!
-
-##  Resultados Esperados
-
-- **Speedup**: Aproximadamente linear com o número de workers
-- **Qualidade**: Mesma qualidade da versão centralizada
-- **Overhead**: Pequeno overhead de comunicação gRPC
-
-##  Autores
-
-Sistema desenvolvido como exemplo de sistema distribuído usando gRPC, baseado no algoritmo ACO clássico.
 
 ---
 
