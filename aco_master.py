@@ -165,9 +165,19 @@ class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
             current_time = self.lamport_clock.update(received_time)
             
             worker_id = request.worker_id
+            iteration = request.iteration
+            
+            if iteration != self.current_iteration:
+                print(f"[Mestre] REJEITADO: Worker {worker_id} enviou dados da iteração {iteration} mas Mestre está na {self.current_iteration}.")
+                return aco_distributed_pb2.SolutionResponse(
+                    accepted=False,
+                    current_best_cost=self.best_cost,
+                    current_best_path=self.best_path if self.best_path else [],
+                    message="Iteração obsoleta (Stale Data)"
+                )
+            
             path = list(request.path)
             cost = request.cost
-            iteration = request.iteration
             
             # Registra evento no log
             self.event_log.append((current_time, "SUBMIT_SOLUTION", worker_id, received_time, cost))
@@ -494,11 +504,12 @@ def main():
     args = parser.parse_args()
     
     graph = [
-        [0, 2, 2, 5, 7],
-        [2, 0, 4, 8, 2],
-        [2, 4, 0, 1, 3],
-        [5, 8, 1, 0, 2],
-        [7, 2, 3, 2, 0],
+      #  0  1  2  3  4
+        [0, 2, 2, 5, 7], # 0
+        [2, 0, 4, 8, 2], # 1
+        [2, 4, 0, 1, 3], # 2
+        [5, 8, 1, 0, 2], # 3
+        [7, 2, 3, 2, 0], # 4
     ]
     
     start_server(args.port, graph, args.iterations, args.ants, args.workers)

@@ -224,7 +224,7 @@ class ACOWorker:
         
         return visited, total_cost
     
-    def request_work(self):
+    def request_work(self): # solicita trabalho ao master os dados necessários para executar
         try:
             # Incrementa relógio antes de enviar requisição
             current_time = self.lamport_clock.increment()
@@ -247,7 +247,7 @@ class ACOWorker:
             print(f"[Worker {self.worker_id}] ERRO ao solicitar trabalho: {e.code()}")
             return None
     
-    def submit_solution(self, path, cost, iteration):
+    def submit_solution(self, path, cost, iteration): # cada worker devolve sua melhor solução local
         try:
             # Incrementa relógio antes de enviar solução
             current_time = self.lamport_clock.increment()
@@ -264,7 +264,7 @@ class ACOWorker:
             
             response = self.master_stub.SubmitSolution(solution)
             
-            # Atualiza relógio ao receber resposta
+    
             if hasattr(response, 'timestamp') and response.timestamp > 0:
                 self.lamport_clock.update(response.timestamp)
             
