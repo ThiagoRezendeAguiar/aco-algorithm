@@ -30,19 +30,57 @@ class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
         self.solutions_current_iteration = []
         self.workers_completed = set()
         
+        # Atributos para 2PC
+        self.transaction_id = 0
+        self.worker_addresses = {}
+        self.worker_stubs = {}
+        
         self.lock = threading.Lock()
         
         print(f"\n{'='*70}")
-        print(f"  MESTRE ACO INICIADO")
+        print(f"  MESTRE ACO INICIADO COM 2PC")
         print(f"  Tamanho do grafo: {self.n} nós")
         print(f"  Iterações totais: {self.total_iterations}")
         print(f"  Formigas por worker: {self.num_ants_per_worker}")
         print(f"  Alpha: {self.alpha} | Beta: {self.beta} | Rho: {self.rho} | Q: {self.q}")
         print(f"{'='*70}\n")
     
+    def register_worker(self, worker_id, address):
+        """Registra um worker e cria stub para comunicacao 2PC"""
+        if worker_id not in self.worker_addresses:
+            self.worker_addresses[worker_id] = address
+            channel = grpc.insecure_channel(address)
+            self.worker_stubs[worker_id] = aco_distributed_pb2_grpc.TwoPhaseCommitServiceStub(channel)
+            print(f"[Mestre] Worker {worker_id} registrado em {address}")
+    
     def RequestWork(self, request, context):
         with self.lock:
             worker_id = request.worker_id
+            
+            # Registra worker se ainda nao foi registrado
+            peer = context.peer()
+            if worker_id not in self.worker_addresses:
+                # Extrai endereco do peer
+                # Formato IPv4: "ipv4:127.0.0.1:porta"
+                # Formato IPv6: "ipv6:[::1]:porta"
+                worker_port = 50051 + worker_id
+                
+                if 'ipv6' in peer:
+                    # Para IPv6, usa localhost
+                    worker_addr = f"localhost:{worker_port}"
+                elif 'ipv4' in peer:
+                    # Para IPv4, extrai IP
+                    addr_parts = peer.split(':')
+                    if len(addr_parts) >= 3:
+                        ip = addr_parts[1]
+                        worker_addr = f"{ip}:{worker_port}"
+                    else:
+                        worker_addr = f"localhost:{worker_port}"
+                else:
+                    # Fallback
+                    worker_addr = f"localhost:{worker_port}"
+                
+                self.register_worker(worker_id, worker_addr)
             
             print(f"[Mestre] Worker {worker_id} solicitou trabalho (Iteração {self.current_iteration + 1}/{self.total_iterations})")
             
@@ -56,9 +94,6 @@ class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
             pheromone_flat = [val for row in self.pheromone for val in row]
             distance_flat = [val for row in self.distance_matrix for val in row]
             
-            start_nodes = [(worker_id * self.num_ants_per_worker + i) % self.n 
-                          for i in range(self.num_ants_per_worker)]
-            
             return aco_distributed_pb2.WorkAssignment(
                 num_ants=self.num_ants_per_worker,
                 iteration=self.current_iteration,
@@ -67,8 +102,7 @@ class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
                 distance_matrix=distance_flat,
                 finished=False,
                 alpha=self.alpha,
-                beta=self.beta,
-                start_nodes=start_nodes
+                beta=self.beta
             )
     
     def SubmitSolution(self, request, context):
@@ -98,8 +132,7 @@ class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
             return response
     
     def _update_pheromones(self):
-        print(f"\n[Mestre] Atualizando feromônios com {len(self.solutions_current_iteration)} soluções...")
-        
+        """Atualiza feromônios com soluções coletadas"""
         for i in range(self.n):
             for j in range(self.n):
                 self.pheromone[i][j] *= (1 - self.rho)
@@ -111,8 +144,98 @@ class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
                 j = path[(idx + 1) % len(path)]
                 self.pheromone[i][j] += deposit
                 self.pheromone[j][i] += deposit
+    
+    def _execute_two_phase_commit(self):
+        """
+        Executa protocolo Two-Phase Commit (2PC)
+        Retorna True se commit foi bem sucedido, False se abortou
+        """
+        self.transaction_id += 1
+        current_tx = self.transaction_id
         
-        print(f"[Mestre] Feromônios atualizados!")
+        print(f"\n[2PC] ========== TRANSACAO {current_tx} ==========")
+        
+        # FASE 1: PREPARE (Voting Phase)
+        print(f"[2PC] FASE 1: Enviando PREPARE para {len(self.worker_stubs)} worker(s)...")
+        
+        votes = {}
+        for worker_id, stub in self.worker_stubs.items():
+            try:
+                request = aco_distributed_pb2.PrepareRequest(
+                    transaction_id=current_tx,
+                    iteration=self.current_iteration,
+                    timestamp=int(time.time() * 1000)
+                )
+                
+                response = stub.Prepare(request, timeout=5.0)
+                votes[worker_id] = response.vote_yes
+                
+                vote_str = "VOTE_YES" if response.vote_yes else "VOTE_NO"
+                print(f"[2PC] Worker {worker_id}: {vote_str} ({response.message})")
+                
+            except grpc.RpcError as e:
+                print(f"[2PC] Worker {worker_id}: FALHA/TIMEOUT ({e.code()})")
+                votes[worker_id] = False
+        
+        # Decisao: COMMIT apenas se TODOS votaram YES
+        all_yes = all(votes.values()) and len(votes) == len(self.worker_stubs)
+        
+        # FASE 2: COMMIT ou ABORT
+        if all_yes:
+            print(f"[2PC] DECISAO: COMMIT (todos votaram YES)")
+            print(f"[2PC] FASE 2: Atualizando feromônios...")
+            
+            # Atualiza feromônios localmente
+            self._update_pheromones()
+            print(f"[2PC] Feromônios atualizados com {len(self.solutions_current_iteration)} solucoes")
+            
+            # Envia COMMIT com feromônios atualizados para todos workers
+            print(f"[2PC] FASE 2: Enviando COMMIT para worker(s)...")
+            pheromone_flat = [val for row in self.pheromone for val in row]
+            
+            commit_acks = 0
+            for worker_id, stub in self.worker_stubs.items():
+                try:
+                    request = aco_distributed_pb2.CommitRequest(
+                        transaction_id=current_tx,
+                        iteration=self.current_iteration,
+                        updated_pheromone_matrix=pheromone_flat,
+                        matrix_size=self.n
+                    )
+                    
+                    response = stub.Commit(request, timeout=5.0)
+                    if response.acknowledged:
+                        commit_acks += 1
+                        print(f"[2PC] Worker {worker_id}: ACK recebido")
+                    
+                except grpc.RpcError as e:
+                    print(f"[2PC] Worker {worker_id}: Falha no ACK ({e.code()})")
+            
+            print(f"[2PC] COMMIT concluído ({commit_acks}/{len(self.worker_stubs)} ACKs)")
+            return True
+            
+        else:
+            print(f"[2PC] DECISAO: ABORT (nem todos votaram YES)")
+            print(f"[2PC] FASE 2: Enviando ABORT para worker(s)...")
+            
+            # Envia ABORT para todos workers
+            for worker_id, stub in self.worker_stubs.items():
+                try:
+                    request = aco_distributed_pb2.AbortRequest(
+                        transaction_id=current_tx,
+                        iteration=self.current_iteration,
+                        reason="Um ou mais workers nao estavam prontos"
+                    )
+                    
+                    response = stub.Abort(request, timeout=5.0)
+                    if response.acknowledged:
+                        print(f"[2PC] Worker {worker_id}: ABORT reconhecido")
+                    
+                except grpc.RpcError as e:
+                    print(f"[2PC] Worker {worker_id}: Falha no ABORT ({e.code()})")
+            
+            print(f"[2PC] ABORT concluído (feromônios NAO atualizados)")
+            return False
     
     def run_coordination(self, expected_workers=2):
         print(f"[Mestre] Aguardando {expected_workers} worker(s) para começar...\n")
@@ -121,21 +244,49 @@ class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
             iteration_start = time.time()
             
             print(f"\n{'='*70}")
-            print(f"  ITERAÇÃO {self.current_iteration + 1}/{self.total_iterations}")
+            print(f"  ITERACAO {self.current_iteration + 1}/{self.total_iterations}")
             print(f"  Melhor custo global: {self.best_cost if self.best_cost != math.inf else 'N/A'}")
             print(f"{'='*70}\n")
             
+            # Aguarda workers enviarem soluções
             self._wait_for_workers(expected_workers)
             
-            with self.lock:
-                self._update_pheromones()
+            # Executa protocolo 2PC para commit da iteração
+            commit_success = False
+            max_retries = 3
+            retry_count = 0
+            
+            while not commit_success and retry_count < max_retries:
+                if retry_count > 0:
+                    print(f"\n[Mestre] Tentativa {retry_count + 1}/{max_retries} de commit...")
                 
-                self.solutions_current_iteration.clear()
-                self.workers_completed.clear()
-                self.current_iteration += 1
+                with self.lock:
+                    commit_success = self._execute_two_phase_commit()
+                
+                if not commit_success:
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        print(f"[Mestre] Aguardando 2s antes de tentar novamente...")
+                        time.sleep(2)
+            
+            if commit_success:
+                print(f"\n[Mestre] Iteracao {self.current_iteration + 1} COMMITADA com sucesso")
+                
+                with self.lock:
+                    self.solutions_current_iteration.clear()
+                    self.workers_completed.clear()
+                    self.current_iteration += 1
+            else:
+                print(f"\n[Mestre] ERRO: Iteracao {self.current_iteration + 1} ABORTADA apos {max_retries} tentativas")
+                print(f"[Mestre] Pulando para proxima iteracao...")
+                
+                with self.lock:
+                    self.solutions_current_iteration.clear()
+                    self.workers_completed.clear()
+                    self.current_iteration += 1
             
             iteration_time = time.time() - iteration_start
-            print(f"\n[Mestre] Iteração completada em {iteration_time:.2f}s\n")
+            print(f"\n[Mestre] Tempo total da iteracao: {iteration_time:.2f}s\n")
         
         with self.lock:
             self.finished = True

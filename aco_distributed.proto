@@ -2,9 +2,20 @@ syntax = "proto3";
 
 package aco_distributed;
 
+// Servico implementado pelo MESTRE
 service ACOMasterService {
   rpc RequestWork (WorkRequest) returns (WorkAssignment);
   rpc SubmitSolution (Solution) returns (SolutionResponse);
+}
+
+// Servico 2PC implementado pelos WORKERS (participantes)
+service TwoPhaseCommitService {
+  // Fase 1: Coordenador pergunta se worker esta pronto
+  rpc Prepare (PrepareRequest) returns (PrepareResponse);
+  
+  // Fase 2: Coordenador ordena commit ou abort
+  rpc Commit (CommitRequest) returns (CommitResponse);
+  rpc Abort (AbortRequest) returns (AbortResponse);
 }
 
 message WorkRequest {
@@ -21,7 +32,6 @@ message WorkAssignment {
   bool finished = 6;
   double alpha = 7;
   double beta = 8;
-  repeated int32 start_nodes = 9;
 }
 
 message Solution {
@@ -37,4 +47,43 @@ message SolutionResponse {
   double current_best_cost = 2;
   repeated int32 current_best_path = 3;
   string message = 4;
+}
+
+// Mensagens para Two-Phase Commit (2PC)
+message PrepareRequest {
+  int32 transaction_id = 1;
+  int32 iteration = 2;
+  int64 timestamp = 3;
+}
+
+message PrepareResponse {
+  bool vote_yes = 1;
+  int32 worker_id = 2;
+  string message = 3;
+  int32 solutions_count = 4;
+}
+
+message CommitRequest {
+  int32 transaction_id = 1;
+  int32 iteration = 2;
+  repeated double updated_pheromone_matrix = 3;
+  int32 matrix_size = 4;
+}
+
+message CommitResponse {
+  bool acknowledged = 1;
+  int32 worker_id = 2;
+  string message = 3;
+}
+
+message AbortRequest {
+  int32 transaction_id = 1;
+  int32 iteration = 2;
+  string reason = 3;
+}
+
+message AbortResponse {
+  bool acknowledged = 1;
+  int32 worker_id = 2;
+  string message = 3;
 }

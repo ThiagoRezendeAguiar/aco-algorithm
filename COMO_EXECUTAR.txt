@@ -1,5 +1,5 @@
 ═══════════════════════════════════════════════════════════
-  GUIA RÁPIDO - ACO DISTRIBUÍDO
+  GUIA RÁPIDO - ACO DISTRIBUÍDO COM 2PC
 ═══════════════════════════════════════════════════════════
 
 PASSO 1: Instalar dependências
@@ -23,13 +23,15 @@ TERMINAL 1 (Mestre):
     python aco_master.py --port 50051 --iterations 10 --ants 5 --workers 2
 
 TERMINAL 2 (Worker 1):
-    python aco_worker.py --id 1 --master localhost:50051
+    python aco_worker.py --id 1 --master localhost:50051 --port 50052
 
 TERMINAL 3 (Worker 2):
-    python aco_worker.py --id 2 --master localhost:50051
+    python aco_worker.py --id 2 --master localhost:50051 --port 50053
 
 TERMINAL 4 (Worker 3 - OPCIONAL):
-    python aco_worker.py --id 3 --master localhost:50051
+    python aco_worker.py --id 3 --master localhost:50051 --port 50054
+
+NOTA: Workers agora requerem parametro --port para servidor 2PC
 
 
 OBSERVAÇÕES:
