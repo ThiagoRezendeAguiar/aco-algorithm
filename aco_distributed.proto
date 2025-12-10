@@ -32,6 +32,7 @@ message WorkAssignment {
   bool finished = 6;
   double alpha = 7;
   double beta = 8;
+  int64 timestamp = 9;  // Timestamp de Lamport na resposta
 }
 
 message Solution {
@@ -47,6 +48,7 @@ message SolutionResponse {
   double current_best_cost = 2;
   repeated int32 current_best_path = 3;
   string message = 4;
+  int64 timestamp = 5;  // Timestamp de Lamport na resposta
 }
 
 // Mensagens para Two-Phase Commit (2PC)
@@ -61,6 +63,7 @@ message PrepareResponse {
   int32 worker_id = 2;
   string message = 3;
   int32 solutions_count = 4;
+  int64 timestamp = 5;  // Timestamp de Lamport
 }
 
 message CommitRequest {
@@ -68,22 +71,26 @@ message CommitRequest {
   int32 iteration = 2;
   repeated double updated_pheromone_matrix = 3;
   int32 matrix_size = 4;
+  int64 timestamp = 5;  // Timestamp de Lamport
 }
 
 message CommitResponse {
   bool acknowledged = 1;
   int32 worker_id = 2;
   string message = 3;
+  int64 timestamp = 4;  // Timestamp de Lamport
 }
 
 message AbortRequest {
   int32 transaction_id = 1;
   int32 iteration = 2;
   string reason = 3;
+  int64 timestamp = 4;  // Timestamp de Lamport
 }
 
 message AbortResponse {
   bool acknowledged = 1;
   int32 worker_id = 2;
   string message = 3;
+  int64 timestamp = 4;  // Timestamp de Lamport
 }

@@ -8,6 +8,39 @@ import aco_distributed_pb2
 import aco_distributed_pb2_grpc
 
 
+class LamportClock:
+    """
+    Implementação manual de Relógio de Lamport para ordenação de eventos distribuídos.
+    
+    Regras:
+    1. Cada processo mantém um contador local
+    2. Antes de qualquer evento local, incrementa o contador
+    3. Ao enviar mensagem, inclui o valor atual do contador
+    4. Ao receber mensagem com timestamp T, atualiza: contador = max(contador, T) + 1
+    """
+    
+    def __init__(self):
+        self.time = 0
+        self.lock = threading.Lock()
+    
+    def increment(self):
+        """Incrementa o relógio antes de um evento local ou envio de mensagem"""
+        with self.lock:
+            self.time += 1
+            return self.time
+    
+    def update(self, received_time):
+        """Atualiza o relógio ao receber uma mensagem: time = max(time, received_time) + 1"""
+        with self.lock:
+            self.time = max(self.time, received_time) + 1
+            return self.time
+    
+    def get_time(self):
+        """Retorna o valor atual do relógio"""
+        with self.lock:
+            return self.time
+
+
 class TwoPhaseCommitServicer(aco_distributed_pb2_grpc.TwoPhaseCommitServiceServicer):
     """Implementacao do servico 2PC no worker (participante)"""
     
@@ -16,10 +49,17 @@ class TwoPhaseCommitServicer(aco_distributed_pb2_grpc.TwoPhaseCommitServiceServi
     
     def Prepare(self, request, context):
         """Fase 1: Worker vota se esta pronto para commitar"""
-        print(f"\n[2PC] Recebi PREPARE para transacao {request.transaction_id}")
+        # Atualiza relógio de Lamport ao receber PREPARE
+        received_time = request.timestamp
+        current_time = self.worker.lamport_clock.update(received_time)
+        
+        print(f"\n[2PC] Recebi PREPARE para transacao {request.transaction_id} | Lamport: {current_time}")
         
         # Verifica se worker esta pronto (terminou de executar formigas)
         is_ready = self.worker.is_ready_for_commit()
+        
+        # Incrementa antes de enviar resposta
+        response_time = self.worker.lamport_clock.increment()
         
         if is_ready:
             print(f"[2PC] Votando: YES (pronto para commitar)")
@@ -27,7 +67,8 @@ class TwoPhaseCommitServicer(aco_distributed_pb2_grpc.TwoPhaseCommitServiceServi
                 vote_yes=True,
                 worker_id=self.worker.worker_id,
                 message="Pronto para commitar",
-                solutions_count=self.worker.solutions_sent
+                solutions_count=self.worker.solutions_sent,
+                timestamp=response_time
             )
         else:
             print(f"[2PC] Votando: NO (ainda processando)")
@@ -35,12 +76,20 @@ class TwoPhaseCommitServicer(aco_distributed_pb2_grpc.TwoPhaseCommitServiceServi
                 vote_yes=False,
                 worker_id=self.worker.worker_id,
                 message="Ainda executando formigas",
-                solutions_count=0
+                solutions_count=0,
+                timestamp=response_time
             )
     
     def Commit(self, request, context):
         """Fase 2: Mestre ordenou COMMIT"""
-        print(f"\n[2PC] Recebi COMMIT para transacao {request.transaction_id}")
+        # Atualiza relógio de Lamport ao receber COMMIT
+        received_time = request.timestamp if hasattr(request, 'timestamp') and request.timestamp > 0 else 0
+        if received_time > 0:
+            current_time = self.worker.lamport_clock.update(received_time)
+        else:
+            current_time = self.worker.lamport_clock.increment()
+        
+        print(f"\n[2PC] Recebi COMMIT para transacao {request.transaction_id} | Lamport: {current_time}")
         
         # Salva novos feromonios recebidos do mestre
         n = request.matrix_size
@@ -56,15 +105,26 @@ class TwoPhaseCommitServicer(aco_distributed_pb2_grpc.TwoPhaseCommitServiceServi
         self.worker.solutions_sent = 0
         self.worker.ready_for_commit = False
         
+        # Incrementa antes de enviar resposta
+        response_time = self.worker.lamport_clock.increment()
+        
         return aco_distributed_pb2.CommitResponse(
             acknowledged=True,
             worker_id=self.worker.worker_id,
-            message="Commit realizado com sucesso"
+            message="Commit realizado com sucesso",
+            timestamp=response_time
         )
     
     def Abort(self, request, context):
         """Fase 2: Mestre ordenou ABORT"""
-        print(f"\n[2PC] Recebi ABORT para transacao {request.transaction_id}")
+        # Atualiza relógio de Lamport ao receber ABORT
+        received_time = request.timestamp if hasattr(request, 'timestamp') and request.timestamp > 0 else 0
+        if received_time > 0:
+            current_time = self.worker.lamport_clock.update(received_time)
+        else:
+            current_time = self.worker.lamport_clock.increment()
+        
+        print(f"\n[2PC] Recebi ABORT para transacao {request.transaction_id} | Lamport: {current_time}")
         print(f"[2PC] Motivo: {request.reason}")
         
         # Descarta solucoes da iteracao atual (se houver)
@@ -74,10 +134,14 @@ class TwoPhaseCommitServicer(aco_distributed_pb2_grpc.TwoPhaseCommitServiceServi
         print(f"[2PC] Transacao {request.transaction_id} ABORTADA")
         print(f"[2PC] Estado resetado para proxima iteracao")
         
+        # Incrementa antes de enviar resposta
+        response_time = self.worker.lamport_clock.increment()
+        
         return aco_distributed_pb2.AbortResponse(
             acknowledged=True,
             worker_id=self.worker.worker_id,
-            message="Abort reconhecido"
+            message="Abort reconhecido",
+            timestamp=response_time
         )
 
 
@@ -87,7 +151,9 @@ class ACOWorker:
         self.worker_id = worker_id
         self.master_address = master_address
         self.worker_port = worker_port
-        self.timestamp = 0
+        
+        # Relógio de Lamport
+        self.lamport_clock = LamportClock()
         
         # Estado para 2PC
         self.solutions_sent = 0
@@ -160,13 +226,21 @@ class ACOWorker:
     
     def request_work(self):
         try:
-            self.timestamp += 1
+            # Incrementa relógio antes de enviar requisição
+            current_time = self.lamport_clock.increment()
+            
             request = aco_distributed_pb2.WorkRequest(
                 worker_id=self.worker_id,
-                timestamp=self.timestamp
+                timestamp=current_time
             )
             
             response = self.master_stub.RequestWork(request)
+            
+            # Atualiza relógio ao receber resposta
+            if hasattr(response, 'timestamp') and response.timestamp > 0:
+                updated_time = self.lamport_clock.update(response.timestamp)
+                print(f"[Worker {self.worker_id}] Relógio atualizado: {updated_time} (recebido: {response.timestamp})")
+            
             return response
             
         except grpc.RpcError as e:
@@ -175,16 +249,24 @@ class ACOWorker:
     
     def submit_solution(self, path, cost, iteration):
         try:
-            self.timestamp += 1
+            # Incrementa relógio antes de enviar solução
+            current_time = self.lamport_clock.increment()
+            
             solution = aco_distributed_pb2.Solution(
                 worker_id=self.worker_id,
                 path=path,
                 cost=cost,
                 iteration=iteration,
-                timestamp=self.timestamp
+                timestamp=current_time
             )
             
+            print(f"[Worker {self.worker_id}] Enviando solução | Lamport: {current_time} | Custo: {cost:.2f}")
+            
             response = self.master_stub.SubmitSolution(solution)
+            
+            # Atualiza relógio ao receber resposta
+            if hasattr(response, 'timestamp') and response.timestamp > 0:
+                self.lamport_clock.update(response.timestamp)
             
             print(f"[Worker {self.worker_id}] Solução aceita! Melhor custo global: {response.current_best_cost:.2f}")
             return response
