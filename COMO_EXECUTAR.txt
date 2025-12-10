@@ -20,7 +20,7 @@ PASSO 3: Abrir 3+ terminais
 ────────────────────────────
 
 TERMINAL 1 (Mestre):
-    python aco_master.py --port 50051 --iterations 10 --ants 5 --workers 2
+    python aco_master.py --port 50051 --iterations 10 --ants 5 --workers 2 --graph graphs/5_nodes.json
 
 TERMINAL 2 (Worker 1):
     python aco_worker.py --id 1 --master localhost:50051 --port 50052

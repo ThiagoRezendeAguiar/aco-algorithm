@@ -95,7 +95,7 @@ Isso irá gerar:
 
 #### **Terminal 1: Mestre**
 ```bash
-python aco_master.py --port 50051 --iterations 10 --ants 5 --workers 2
+python aco_master.py --port 50051 --iterations 10 --ants 5 --workers 2 --graph graphs/5_nodes.json
 ```
 
 Parâmetros:
