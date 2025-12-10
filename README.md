@@ -1,6 +1,30 @@
-# ACO Distribuído com gRPC 
+# ACO - Ant Colony Optimization
 
-Sistema de **Otimização por Colônia de Formigas (ACO)** implementado de forma distribuída usando **gRPC** com arquitetura **Mestre-Worker**.
+O ACO é uma **meta-heurística** para resolver problemas modelados com grafos (por exemplo: [TSP](https://en.wikipedia.org/wiki/Travelling_salesman_problem), [SPP](https://en.wikipedia.org/wiki/Shortest_path_problem), [AP](https://en.wikipedia.org/wiki/Assignment_problem), e entre outro que envolvem caminhos/combinações).
+
+
+### Inspiração Biológia
+
+Na natureza, formigas cegas encontram o caminho mais curto entre o formigueiro e a comida usando feromônios.
+
+1. As formigas saem aleatoriamente.
+2. Ao voltar com comida, elas deixam um rastro químico (feromônio).
+3. Outras formigas têm maior probabilidade de seguir caminhos com mais feromônio.
+4. O feromônio evapora com o tempo. Caminhos longos demoram mais para serem percorridos $\rightarrow$ o feromônio evapora antes de ser reforçado $\rightarrow$ o caminho fica fraco.
+5. Caminhos curtos são percorridos mais vezes $\rightarrow$ acumulam mais feromônio $\rightarrow$ atraem mais formigas.
+
+![aco illustration](./assets/aco_illustration.png)
+
+De forma análoga, no computador, as formigas são agentes artificiais que constroem soluções passo a passo, escolhendo o próximo nó com base em **feromônios** (memória global da busca) e **informações heurísticas** (visão local do problema, como distância ou custo). O **feromônio depositado** corresponde à **qualidade da solução encontrada** — caminhos melhores recebem mais reforço — e a **evaporação** representa a **redução gradual da importância de soluções antigas**, evitando que o algoritmo fique preso em opções ruins. Assim, tal como na natureza, surge um processo de **exploração guiada**, onde boas rotas são descobertas, reforçadas e, ao longo do tempo, convergem para caminhos próximos do ótimo.
+
+### Definição formal
+
+A probabilidade $P$ de uma formiga ir do node $i$ para o $j$ é:
+
+$$P_{ij} = \frac{(\tau_{ij})^\alpha \cdot (\eta_{ij})^\beta}{\sum (\tau_{ik})^\alpha \cdot (\eta_{ik})^\beta}$$
+
+
+
 
 ##  Arquitetura
 
@@ -253,6 +277,21 @@ Para executar em computadores diferentes:
    python aco_worker.py --id 3 --master <IP_DO_MESTRE>:50051
    ```
 
+
+## Autores
+| <img src="https://github.com/thomneuenschwander.png" width="100" height="100" alt="Thomas Neuenschwander"/> | <img src="https://github.com/ThiagoRezendeAguiar.png" width="100" height="100" alt="Thiago Rezende"/> | <img src="https://github.com/LuigiLouback.png" width="100" height="100" alt="Luigi Louback"/> | <img src="https://github.com/henriquerlara.png" width="100" height="100" alt="Henrique Lara"/> |
+|:---:|:---:|:---:|:---:|
+| [Thomas <br> Neuenschwander](https://github.com/thomneuenschwander) | [Thiago <br> Rezende](https://github.com/ThiagoRezendeAguiar) | [Luigi <br> Louback](https://github.com/LuigiLouback) | [Henrique <br> Lara](https://github.com/henriquerlara) |
+
+
+| <img src="https://github.com/liviacx.png" width="100" height="100" alt="Livia Xavier"/> | <img src="https://github.com/EduardoAVS.png" width="100" height="100" alt="Eduardo Araújo"/> | <img src="https://github.com/Lasca101.png" width="100" height="100" alt="Tiago Lascasas"/> | <img src="https://github.com/DigoDrummond.png" width="100" height="100" alt="Rodrigo Drummond"/> |
+|:---:|:---:|:---:|:---:|
+| [Livia <br> Xavier](https://github.com/liviacx) | [Eduardo <br> Araújo](https://github.com/EduardoAVS) | [Tiago <br> Lascasas](https://github.com/Lasca101) | [Rodrigo <br> Drummond](https://github.com/DigoDrummond) |
+
+
+## Fontes
+
+- [YT - Otimização por Colônia de Formigas (ACO - Ant Colony Optimization)](https://www.youtube.com/watch?v=-uZmt_ErimY)
 
 ---
 
