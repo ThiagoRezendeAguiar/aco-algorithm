@@ -6,6 +6,7 @@ from concurrent import futures
 import grpc
 import aco_distributed_pb2
 import aco_distributed_pb2_grpc
+from utils_gen_graphs import load_graph_from_json
 
 
 class LamportClock:
@@ -383,6 +384,8 @@ class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
     def run_coordination(self, expected_workers=2):
         print(f"[Mestre] Aguardando {expected_workers} worker(s) para começar...\n")
         
+        total_start_time = time.time()
+        
         while self.current_iteration < self.total_iterations:
             iteration_start = time.time()
             
@@ -431,6 +434,8 @@ class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
             iteration_time = time.time() - iteration_start
             print(f"\n[Mestre] Tempo total da iteracao: {iteration_time:.2f}s\n")
         
+        total_duration = time.time() - total_start_time
+        
         with self.lock:
             self.finished = True
         
@@ -439,6 +444,7 @@ class ACOMaster(aco_distributed_pb2_grpc.ACOMasterServiceServicer):
         
         print(f"\n{'='*70}")
         print(f"  ALGORITMO FINALIZADO!")
+        print(f"  Tempo Total de Execução: {total_duration:.4f} segundos")
         print(f"  Melhor custo: {self.best_cost:.2f}")
         print(f"  Melhor caminho: {self.best_path}")
         print(f"  Timestamp Lamport: {self.best_timestamp}")
@@ -500,17 +506,12 @@ def main():
     parser.add_argument('--iterations', type=int, default=10, help='Número de iterações (padrão: 10)')
     parser.add_argument('--ants', type=int, default=5, help='Formigas por worker (padrão: 5)')
     parser.add_argument('--workers', type=int, default=2, help='Número esperado de workers (padrão: 2)')
+    parser.add_argument('--graph', type=str, default='graphs/5_nodes.json', help='Caminho do arquivo JSON do grafo')
     
     args = parser.parse_args()
     
-    graph = [
-      #  0  1  2  3  4
-        [0, 2, 2, 5, 7], # 0
-        [2, 0, 4, 8, 2], # 1
-        [2, 4, 0, 1, 3], # 2
-        [5, 8, 1, 0, 2], # 3
-        [7, 2, 3, 2, 0], # 4
-    ]
+    print(f"Carregando grafo de: {args.graph}")
+    graph = load_graph_from_json(args.graph)
     
     start_server(args.port, graph, args.iterations, args.ants, args.workers)
 

@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+service BFService {
+  // Worker pede uma tarefa (um prefixo de rota para explorar)
+  rpc GetTask (BFRequest) returns (BFTask);
+  
+  // Worker devolve o melhor resultado que encontrou para aquela tarefa
+  rpc SubmitResult (BFResult) returns (BFAck);
+}
+
+message BFRequest {
+  int32 worker_id = 1;
+}
+
+message BFTask {
+  bool finished = 1;          // Se true, não tem mais trabalho
+  repeated int32 prefix = 2;  // Ex: [0, 2] (Comece explorando rotas que iniciam assim)
+  repeated double distance_matrix = 3; // O grafo completo
+  int32 matrix_size = 4;
+}
+
+message BFResult {
+  int32 worker_id = 1;
+  repeated int32 path = 2;
+  double cost = 3;
+}
+
+message BFAck {
+  bool success = 1;
+}
